@@ -1,0 +1,30 @@
+<% wrap_layout :inner do %>
+    <% content_for :sidebar do %>
+        <div class="docs-sidebar hidden-print affix-top" role="complementary">
+            <ul class="nav docs-sidenav">
+                <li<%= sidebar_current("docs-home") %>>
+                    <a href="/docs/providers/index.html">All Providers</a>
+                </li>
+  
+                <li<%= sidebar_current("docs-mcaf-index") %>>
+                    <a href="/docs/providers/mcaf/index.html">MCAF Provider</a>
+                </li>
+  
+                <li<%= sidebar_current("docs-mcaf-resource") %>>
+                    <a href="#">Resources</a>
+                    <ul class="nav nav-visible">
+                        <li<%= sidebar_current("docs-mcaf-aws-account") %>>
+                        <a href="/docs/providers/mcaf/r/aws_account.html">mcaf_aws_account</a>
+                        </li>
+  
+                        <li<%= sidebar_current("docs-mcaf-0365-account") %>>
+                        <a href="/docs/providers/mcaf/r/o365_alias.html">mcaf_o365_alias</a>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    <% end %>
+
+    <%= yield %>
+<% end %>
