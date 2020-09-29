@@ -3,7 +3,9 @@ package mcaf
 import (
 	"fmt"
 	"log"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -25,6 +27,20 @@ func resourceO365Alias() *schema.Resource {
 				Required:    true,
 				DefaultFunc: schema.EnvDefaultFunc("O365_GROUP_ID", nil),
 				ForceNew:    true,
+				ValidateFunc: func(v interface{}, k string) (warns []string, errs []error) {
+					if !isValidUUID(v.(string)) {
+						errs = append(errs, fmt.Errorf("%q is not a valid UUID", k))
+					}
+					return
+				},
+			},
+		},
+		SchemaVersion: 1,
+		StateUpgraders: []schema.StateUpgrader{
+			{
+				Type:    resourceO365AliasResourceV0().CoreConfigSchema().ImpliedType(),
+				Upgrade: resourceO365AliasStateUpgradeV0,
+				Version: 0,
 			},
 		},
 	}
@@ -38,13 +54,16 @@ func resourceO365AliasCreate(d *schema.ResourceData, meta interface{}) error {
 	groupID := d.Get("group_id").(string)
 
 	log.Printf("[DEBUG] Add alias %s to group %s", alias, groupID)
-	_, err := o365.Create(groupID, []string{alias})
+	_, err := o365.Create(groupID, alias)
 	if err != nil {
 		return fmt.Errorf("Error creating alias %s: %v", alias, err)
 	}
 
 	// Set the ID.
 	d.SetId(alias)
+
+	// Sleep to compensate for delay in Exchange Online API to show new aliases.
+	time.Sleep(10 * time.Second)
 
 	return nil
 }
@@ -62,8 +81,8 @@ func resourceO365AliasRead(d *schema.ResourceData, meta interface{}) error {
 		return fmt.Errorf("Error reading aliases: %v", err)
 	}
 
-	// Check and return if the alias still exists.
-	for _, nickname := range resp.Aliases {
+	// Check and return if the alias exists.
+	for _, nickname := range resp.Group.Aliases {
 		if alias == nickname {
 			return nil
 		}
@@ -83,10 +102,15 @@ func resourceO365AliasDelete(d *schema.ResourceData, meta interface{}) error {
 	groupID := d.Get("group_id").(string)
 
 	log.Printf("[DEBUG] Delete alias %s from group %s", alias, groupID)
-	_, err := o365.Delete(groupID, []string{alias})
+	_, err := o365.Delete(groupID, alias)
 	if err != nil {
 		return fmt.Errorf("Error deleting alias %s: %v", alias, err)
 	}
 
 	return nil
+}
+
+func isValidUUID(u string) bool {
+	_, err := uuid.Parse(u)
+	return err == nil
 }
