@@ -301,8 +301,7 @@ func waitForProvisioning(name string, recordId *string, meta interface{}) error 
 
 		// If the provisioning failed we try to cleanup the tainted account.
 		if *status.RecordDetail.Status == servicecatalog.RecordStatusFailed {
-			log.Printf("[INFO] Provisioning account %s failed: %v", name, status.RecordDetail.RecordErrors)
-			break
+			return fmt.Errorf("Provisioning account %s failed: %s", name, *status.RecordDetail.RecordErrors[0].Description)
 		}
 
 		// Wait 5 seconds before checking the status again.
