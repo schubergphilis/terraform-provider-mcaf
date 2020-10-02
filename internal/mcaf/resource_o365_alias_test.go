@@ -37,6 +37,13 @@ func TestAccMcafO365Alias_basic(t *testing.T) {
 						"mcaf_o365_alias.foo", "id", O365_ALIAS),
 				),
 			},
+
+			{
+				ResourceName:      "mcaf_o365_alias.foo",
+				ImportState:       true,
+				ImportStateId:     fmt.Sprintf("%s:%s", O365_GROUP_ID, O365_ALIAS),
+				ImportStateVerify: true,
+			},
 		},
 	})
 }

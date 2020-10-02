@@ -3,6 +3,7 @@ package mcaf
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +15,9 @@ func resourceO365Alias() *schema.Resource {
 		Create: checkProvider("o365", resourceO365AliasCreate),
 		Read:   checkProvider("o365", resourceO365AliasRead),
 		Delete: checkProvider("o365", resourceO365AliasDelete),
+		Importer: &schema.ResourceImporter{
+			StateContext: schema.ImportStatePassthroughContext,
+		},
 
 		Schema: map[string]*schema.Schema{
 			"alias": {
@@ -75,6 +79,17 @@ func resourceO365AliasRead(d *schema.ResourceData, meta interface{}) error {
 	alias := d.Id()
 	groupID := d.Get("group_id").(string)
 
+	// Incase we're importing a resource...
+	if strings.Contains(d.Id(), ":") {
+		var err error
+		groupID, alias, err = resourceO365AliasParseId(d.Id())
+		if err != nil {
+			return err
+		}
+		d.SetId(alias)
+		d.Set("group_id", groupID)
+	}
+
 	log.Printf("[DEBUG] Read existing aliases of group %s", groupID)
 	resp, err := o365.Read(groupID)
 	if err != nil {
@@ -84,6 +99,8 @@ func resourceO365AliasRead(d *schema.ResourceData, meta interface{}) error {
 	// Check and return if the alias exists.
 	for _, nickname := range resp.Group.Aliases {
 		if alias == nickname {
+			d.SetId(alias)
+			d.Set("alias", alias)
 			return nil
 		}
 	}
@@ -108,6 +125,16 @@ func resourceO365AliasDelete(d *schema.ResourceData, meta interface{}) error {
 	}
 
 	return nil
+}
+
+func resourceO365AliasParseId(id string) (string, string, error) {
+	parts := strings.SplitN(id, ":", 2)
+
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", fmt.Errorf("unexpected format of ID (%s), expected groupid:alias", id)
+	}
+
+	return parts[0], parts[1], nil
 }
 
 func isValidUUID(u string) bool {

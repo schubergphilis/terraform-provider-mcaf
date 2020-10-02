@@ -3,7 +3,7 @@ layout: "mcaf"
 page_title: "MCAF: mcaf_o365_alias"
 sidebar_current: "docs-mcaf-resource-o365-alias"
 description: |-
-  Adds a ProxyAddress to an existing O365 group using the ExoAPI.
+  Adds a proxy address to an existing O365 group using the ExoAPI.
 ---
 
 # mcaf_o365_alias
@@ -27,3 +27,12 @@ The following arguments are supported:
 
 * `group_id` - (Required) The GUID of the O365 group to manage. It can also be
   sourced from the `O365_GROUP_ID` environment variable.
+
+## Import
+
+O365 group aliases can be imported using a combination of the group ID and the
+alias itself, e.g.
+
+```
+$ terraform import mcaf_o365_alias.example 850dbcea-6a4a-46da-adb5-10f1a702f7ab:alias@example.com
+```
