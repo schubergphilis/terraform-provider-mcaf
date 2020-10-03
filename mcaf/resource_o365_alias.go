@@ -14,13 +14,13 @@ func resourceO365Alias() *schema.Resource {
 		Delete: checkProvider("o365", resourceO365AliasDelete),
 
 		Schema: map[string]*schema.Schema{
-			"alias": &schema.Schema{
+			"alias": {
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
 			},
 
-			"group_id": &schema.Schema{
+			"group_id": {
 				Type:        schema.TypeString,
 				Required:    true,
 				DefaultFunc: schema.EnvDefaultFunc("O365_GROUP_ID", nil),

@@ -11,14 +11,14 @@ import (
 func New() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
-			"aws": &schema.Schema{
+			"aws": {
 				Type:     schema.TypeList,
 				Optional: true,
 				MaxItems: 1,
 				Elem:     awsProviderSchema(),
 			},
 
-			"o365": &schema.Schema{
+			"o365": {
 				Type:     schema.TypeList,
 				Optional: true,
 				MaxItems: 1,

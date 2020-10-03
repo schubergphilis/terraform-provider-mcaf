@@ -19,35 +19,35 @@ func resourceAWSAccount() *schema.Resource {
 		Delete: checkProvider("aws", resourceAWSAccountDelete),
 
 		Schema: map[string]*schema.Schema{
-			"name": &schema.Schema{
+			"name": {
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
 			},
 
-			"email": &schema.Schema{
+			"email": {
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
 			},
 
-			"sso": &schema.Schema{
+			"sso": {
 				Type:     schema.TypeList,
 				Required: true,
 				MaxItems: 1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
-						"firstname": &schema.Schema{
+						"firstname": {
 							Type:     schema.TypeString,
 							Required: true,
 						},
 
-						"lastname": &schema.Schema{
+						"lastname": {
 							Type:     schema.TypeString,
 							Required: true,
 						},
 
-						"email": &schema.Schema{
+						"email": {
 							Type:     schema.TypeString,
 							Required: true,
 						},
@@ -55,19 +55,19 @@ func resourceAWSAccount() *schema.Resource {
 				},
 			},
 
-			"organizational_unit": &schema.Schema{
+			"organizational_unit": {
 				Type:     schema.TypeString,
 				Required: true,
 			},
 
-			"provisioned_product_name": &schema.Schema{
+			"provisioned_product_name": {
 				Type:     schema.TypeString,
 				Optional: true,
 				Computed: true,
 				ForceNew: true,
 			},
 
-			"account_id": &schema.Schema{
+			"account_id": {
 				Type:     schema.TypeString,
 				Computed: true,
 			},
@@ -82,7 +82,7 @@ func resourceAWSAccountCreate(d *schema.ResourceData, meta interface{}) error {
 
 	log.Printf("[DEBUG] Search the Account Factory product")
 	products, err := scconn.SearchProducts(&servicecatalog.SearchProductsInput{
-		Filters: map[string][]*string{"FullTextSearch": []*string{aws.String("AWS Control Tower Account Factory")}},
+		Filters: map[string][]*string{"FullTextSearch": {aws.String("AWS Control Tower Account Factory")}},
 	})
 	if err != nil {
 		return fmt.Errorf("Error searching service catalog: %v", err)
