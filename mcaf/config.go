@@ -9,8 +9,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/servicecatalog"
 	awsbase "github.com/hashicorp/aws-sdk-go-base"
-	"github.com/hashicorp/terraform-plugin-sdk/helper/logging"
-	"github.com/hashicorp/terraform-plugin-sdk/terraform"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/logging"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	homedir "github.com/mitchellh/go-homedir"
 )
 
