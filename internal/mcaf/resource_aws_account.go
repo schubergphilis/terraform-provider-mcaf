@@ -75,7 +75,7 @@ func resourceAWSAccount() *schema.Resource {
 	}
 }
 
-var accountCreateMutex sync.Mutex
+var accountMutex sync.Mutex
 
 func resourceAWSAccountCreate(d *schema.ResourceData, meta interface{}) error {
 	scconn := meta.(*Client).AWSClient.scconn
@@ -155,8 +155,8 @@ func resourceAWSAccountCreate(d *schema.ResourceData, meta interface{}) error {
 		},
 	}
 
-	accountCreateMutex.Lock()
-	defer accountCreateMutex.Unlock()
+	accountMutex.Lock()
+	defer accountMutex.Unlock()
 
 	log.Printf("[DEBUG] Provision account %s in organizational unit %s", name, ou)
 	account, err := scconn.ProvisionProduct(params)
@@ -246,6 +246,9 @@ func resourceAWSAccountUpdate(d *schema.ResourceData, meta interface{}) error {
 		},
 	}
 
+	accountMutex.Lock()
+	defer accountMutex.Unlock()
+
 	log.Printf("[DEBUG] Update provisioned account %s: %s", name, d.Id())
 	account, err := scconn.UpdateProvisionedProduct(params)
 	if err != nil {
@@ -267,6 +270,9 @@ func resourceAWSAccountDelete(d *schema.ResourceData, meta interface{}) error {
 	// Get the name from the config.
 	name := d.Get("name").(string)
 
+	accountMutex.Lock()
+	defer accountMutex.Unlock()
+
 	log.Printf("[DEBUG] Delete provisioned account %s: %s", name, d.Id())
 	account, err := scconn.TerminateProvisionedProduct(&servicecatalog.TerminateProvisionedProductInput{
 		ProvisionedProductId: aws.String(d.Id()),
@@ -280,11 +286,11 @@ func resourceAWSAccountDelete(d *schema.ResourceData, meta interface{}) error {
 }
 
 // waitForProvisioning waits until the provisioning finished.
-func waitForProvisioning(name string, recordId *string, meta interface{}) error {
+func waitForProvisioning(name string, recordID *string, meta interface{}) error {
 	scconn := meta.(*Client).AWSClient.scconn
 
 	record := &servicecatalog.DescribeRecordInput{
-		Id: recordId,
+		Id: recordID,
 	}
 
 	for {
