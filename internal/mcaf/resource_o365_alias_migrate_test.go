@@ -11,7 +11,6 @@ import (
 )
 
 func TestResourceO365AliasStateUpgradeV0(t *testing.T) {
-
 	groupName := acctest.RandString(8)
 	groupUuid := uuid.New().String()
 

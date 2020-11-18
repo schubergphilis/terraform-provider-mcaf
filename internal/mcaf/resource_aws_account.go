@@ -24,13 +24,11 @@ func resourceAWSAccount() *schema.Resource {
 				Required: true,
 				ForceNew: true,
 			},
-
 			"email": {
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
 			},
-
 			"sso": {
 				Type:     schema.TypeList,
 				Required: true,
@@ -54,19 +52,16 @@ func resourceAWSAccount() *schema.Resource {
 					},
 				},
 			},
-
 			"organizational_unit": {
 				Type:     schema.TypeString,
 				Required: true,
 			},
-
 			"provisioned_product_name": {
 				Type:     schema.TypeString,
 				Optional: true,
 				Computed: true,
 				ForceNew: true,
 			},
-
 			"account_id": {
 				Type:     schema.TypeString,
 				Computed: true,

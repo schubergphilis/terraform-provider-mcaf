@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
@@ -15,9 +16,7 @@ var (
 )
 
 func TestAccMcafO365Alias_basic(t *testing.T) {
-
 	var group o365Group
-
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		Providers:    testAccProviders,
@@ -37,7 +36,6 @@ func TestAccMcafO365Alias_basic(t *testing.T) {
 						"mcaf_o365_alias.foo", "id", O365_ALIAS),
 				),
 			},
-
 			{
 				ResourceName:      "mcaf_o365_alias.foo",
 				ImportState:       true,
@@ -50,6 +48,9 @@ func TestAccMcafO365Alias_basic(t *testing.T) {
 
 func testAccMcafO365AliasExists(n string, group *o365Group) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
+		// We need to wait ~10 seconds to make sure
+		// the API returns the newly created alias.
+		time.Sleep(10 * time.Second)
 
 		rs, ok := s.RootModule().Resources[n]
 		if !ok {
@@ -66,7 +67,14 @@ func testAccMcafO365AliasExists(n string, group *o365Group) resource.TestCheckFu
 			return err
 		}
 
-		if !contains(g.Group.Aliases, O365_ALIAS) {
+		exists := false
+		for _, alias := range g.Group.Aliases {
+			if alias == O365_ALIAS {
+				exists = true
+				break
+			}
+		}
+		if !exists {
 			return fmt.Errorf("Alias not found")
 		}
 
@@ -78,11 +86,9 @@ func testAccMcafO365AliasExists(n string, group *o365Group) resource.TestCheckFu
 
 func testAccMcafO365AliasAttributes(group *o365Group) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-
-		if group.Id != O365_GROUP_ID {
-			return fmt.Errorf("Bad group ID: %s", group.Id)
+		if group.ID != O365_GROUP_ID {
+			return fmt.Errorf("Bad group ID: %s", group.ID)
 		}
-
 		return nil
 	}
 }
@@ -115,15 +121,4 @@ provider "mcaf" {
 
 resource "mcaf_o365_alias" "foo" {
   alias = "%s"
-}`,
-	O365_ALIAS,
-)
-
-func contains(a []string, x string) bool {
-	for _, n := range a {
-		if x == n {
-			return true
-		}
-	}
-	return false
-}
+}`, O365_ALIAS)

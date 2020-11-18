@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -16,7 +15,7 @@ func resourceO365Alias() *schema.Resource {
 		Read:   checkProvider("o365", resourceO365AliasRead),
 		Delete: checkProvider("o365", resourceO365AliasDelete),
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			State: resourceO365AliasImporter,
 		},
 
 		Schema: map[string]*schema.Schema{
@@ -25,17 +24,16 @@ func resourceO365Alias() *schema.Resource {
 				Required: true,
 				ForceNew: true,
 			},
-
 			"group_id": {
 				Type:        schema.TypeString,
 				Required:    true,
 				DefaultFunc: schema.EnvDefaultFunc("O365_GROUP_ID", nil),
 				ForceNew:    true,
 				ValidateFunc: func(v interface{}, k string) (warns []string, errs []error) {
-					if !isValidUUID(v.(string)) {
+					if _, err := uuid.Parse(v.(string)); err != nil {
 						errs = append(errs, fmt.Errorf("%q is not a valid UUID", k))
 					}
-					return
+					return warns, errs
 				},
 			},
 		},
@@ -66,9 +64,6 @@ func resourceO365AliasCreate(d *schema.ResourceData, meta interface{}) error {
 	// Set the ID.
 	d.SetId(alias)
 
-	// Sleep to compensate for delay in Exchange Online API to show new aliases.
-	time.Sleep(10 * time.Second)
-
 	return nil
 }
 
@@ -78,17 +73,6 @@ func resourceO365AliasRead(d *schema.ResourceData, meta interface{}) error {
 	// Get the alias and group ID.
 	alias := d.Id()
 	groupID := d.Get("group_id").(string)
-
-	// Incase we're importing a resource...
-	if strings.Contains(d.Id(), ":") {
-		var err error
-		groupID, alias, err = resourceO365AliasParseId(d.Id())
-		if err != nil {
-			return err
-		}
-		d.SetId(alias)
-		d.Set("group_id", groupID)
-	}
 
 	log.Printf("[DEBUG] Read existing aliases of group %s", groupID)
 	resp, err := o365.Read(groupID)
@@ -127,17 +111,18 @@ func resourceO365AliasDelete(d *schema.ResourceData, meta interface{}) error {
 	return nil
 }
 
-func resourceO365AliasParseId(id string) (string, string, error) {
-	parts := strings.SplitN(id, ":", 2)
-
+func resourceO365AliasImporter(d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	parts := strings.SplitN(d.Id(), ":", 2)
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return "", "", fmt.Errorf("unexpected format of ID (%s), expected groupid:alias", id)
+		return nil, fmt.Errorf(
+			"invalid O365 alias import format: %s (expected <GROUP ID>:<ALIAS>)",
+			d.Id(),
+		)
 	}
 
-	return parts[0], parts[1], nil
-}
+	// Set the fields that are part of the import ID.
+	d.Set("group_id", parts[0])
+	d.SetId(parts[1])
 
-func isValidUUID(u string) bool {
-	_, err := uuid.Parse(u)
-	return err == nil
+	return []*schema.ResourceData{d}, nil
 }

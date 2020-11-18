@@ -16,7 +16,6 @@ func resourceO365AliasResourceV0() *schema.Resource {
 				Required: true,
 				ForceNew: true,
 			},
-
 			"group_id": {
 				Type:        schema.TypeString,
 				Required:    true,
@@ -28,7 +27,6 @@ func resourceO365AliasResourceV0() *schema.Resource {
 }
 
 func resourceO365AliasStateUpgradeV0(_ context.Context, rawState map[string]interface{}, meta interface{}) (map[string]interface{}, error) {
-
 	log.Println("[INFO] Found O365 group alias state v0; migrating to v1")
 
 	group_id := rawState["group_id"].(string)
