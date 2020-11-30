@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -11,6 +12,8 @@ import (
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/google/go-querystring/query"
 )
 
 var (
@@ -30,27 +33,30 @@ type O365Client struct {
 }
 
 type o365Request struct {
-	Aliases []string `json:"MailNicknames,omitempty"`
-	GroupID string   `json:"UnifiedGroupID"`
-}
-
-type o365StatusURL struct {
-	StatusURL string `json:"StatusURL"`
+	Alias   string `url:"-" json:"proxy_address,omitempty"`
+	GroupID string `url:"unifiedgroupid" json:"unified_group_id"`
 }
 
 type Status string
 
 const (
-	Done       Status = "Done"
-	Error      Status = "Error"
-	InProgress Status = "InProgress"
-	Queued     Status = "Queued"
+	Error      Status = "error"
+	InProgress Status = "inprogress"
+	Queued     Status = "queued"
+	Success    Status = "success"
 )
 
+type o365Group struct {
+	Aliases []string `json:"proxy_addresses"`
+	ID      string   `json:"id"`
+}
+
 type o365Response struct {
-	Aliases []string `json:"MailNicknames"`
-	GroupID string   `json:"UnifiedGroupID"`
-	Status  Status   `json:"Status"`
+	Group   o365Group `json:"unified_group"`
+	Request struct {
+		ID string `json:"id"`
+	} `json:"request"`
+	Status Status `json:"status"`
 }
 
 type o365Error struct {
@@ -62,9 +68,9 @@ func (e *o365Error) Error() string {
 	return fmt.Sprintf("unexpected response: %s (%s)", e.Message, e.Code)
 }
 
-func (o *O365Client) Create(groupID string, aliases []string) (*o365Response, error) {
+func (o *O365Client) Create(groupID string, alias string) (*o365Response, error) {
 	req := &o365Request{
-		Aliases: aliases,
+		Alias:   alias,
 		GroupID: groupID,
 	}
 	return o.do("POST", req)
@@ -91,58 +97,74 @@ func (o *O365Client) Read(groupID string) (*o365Response, error) {
 	return resp, nil
 }
 
-func (o *O365Client) Delete(groupID string, aliases []string) (*o365Response, error) {
+func (o *O365Client) Delete(groupID string, alias string) (*o365Response, error) {
 	req := &o365Request{
-		Aliases: aliases,
+		Alias:   alias,
 		GroupID: groupID,
 	}
 	return o.do("DELETE", req)
 }
 
-func (o *O365Client) do(method string, reqBody *o365Request) (*o365Response, error) {
-	bodyBytes, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader := bytes.NewReader(bodyBytes)
+func (o *O365Client) do(method string, opt interface{}) (*o365Response, error) {
+	var body io.Reader
+	endpoint := *o.endpoint
 
-	u := fmt.Sprintf("%s?code=%s", o.endpoint.String(), o.secretCode)
-	req, err := http.NewRequest(method, u, bodyReader)
-	if err != nil {
-		return nil, err
+	switch {
+	case method == "POST" || method == "DELETE":
+		content, err := json.Marshal(opt)
+		if err != nil {
+			return nil, err
+		}
+		body = bytes.NewReader(content)
+	case opt != nil:
+		q, err := query.Values(opt)
+		if err != nil {
+			return nil, err
+		}
+		endpoint.RawQuery = q.Encode()
 	}
 
-	status := new(o365StatusURL)
-	if err := o.call(req, status); err != nil {
-		return nil, err
-	}
-
-	u = fmt.Sprintf("%s&code=%s", status.StatusURL, o.secretCode)
-	req, err = http.NewRequest("GET", u, nil)
+	req, err := http.NewRequest(method, endpoint.String(), body)
 	if err != nil {
 		return nil, err
 	}
 
 	resp := new(o365Response)
-	for resp.Status != Done && resp.Status != Error {
+	if err := o.call(req, resp); err != nil {
+		return nil, err
+	}
+
+	// Return if there is no request ID to follow up on.
+	if resp.Request.ID == "" {
+		return resp, nil
+	}
+
+	u := fmt.Sprintf("%s/%s", o.endpoint.String(), resp.Request.ID)
+	req, err = http.NewRequest("GET", u, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	for resp.Status != Success && resp.Status != Error {
 		if err = o.call(req, resp); err != nil {
 			return nil, err
 		}
-		time.Sleep(5 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
 
 	return resp, nil
 }
 
 func (o *O365Client) call(req *http.Request, v interface{}) error {
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Aclguid", o.aclGUID)
+	req.Header.Set("content-type", "application/json")
+	req.Header.Set("x-acl-guid", o.aclGUID)
+	req.Header.Set("x-functions-key", o.secretCode)
 
 	request, err := httputil.DumpRequest(req, true)
 	if err != nil {
 		return err
 	}
-	log.Printf("[DEBUG] %s", string(request))
+	log.Printf("[DEBUG] request: %s", string(request))
 
 	resp, err := o.client.Do(req)
 	if err != nil {
@@ -154,9 +176,9 @@ func (o *O365Client) call(req *http.Request, v interface{}) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("[DEBUG] %s", string(response))
+	log.Printf("[DEBUG] response: %s", string(response))
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK {
 		var e struct {
 			Error *o365Error `json:"error"`
 		}

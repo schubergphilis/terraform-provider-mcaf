@@ -72,7 +72,7 @@ func awsClient(aws map[string]interface{}) (*AWSClient, error) {
 
 // o365Client configures and returns a fully initialized O365Client.
 func o365Client(o365 map[string]interface{}) (*O365Client, error) {
-	u, err := url.Parse(o365["endpoint"].(string))
+	endpoint, err := url.Parse(o365["endpoint"].(string))
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse endpoint: %v", err)
 	}
@@ -80,7 +80,7 @@ func o365Client(o365 map[string]interface{}) (*O365Client, error) {
 	return &O365Client{
 		aclGUID:    o365["acl_guid"].(string),
 		client:     &http.Client{Timeout: 10 * time.Minute},
-		endpoint:   u,
+		endpoint:   endpoint,
 		secretCode: o365["secret_code"].(string),
 	}, nil
 }
