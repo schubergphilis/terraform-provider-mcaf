@@ -1,11 +1,7 @@
 package mcaf
 
 import (
-	"fmt"
 	"log"
-	"net/http"
-	"net/url"
-	"time"
 
 	"github.com/aws/aws-sdk-go/service/servicecatalog"
 	awsbase "github.com/hashicorp/aws-sdk-go-base"
@@ -17,7 +13,6 @@ import (
 // Client represents a general purpose MCAF client.
 type Client struct {
 	AWSClient *AWSClient
-	O365      *O365Client
 }
 
 type AWSClient struct {
@@ -68,19 +63,4 @@ func awsClient(aws map[string]interface{}) (*AWSClient, error) {
 	}
 
 	return client, nil
-}
-
-// o365Client configures and returns a fully initialized O365Client.
-func o365Client(o365 map[string]interface{}) (*O365Client, error) {
-	endpoint, err := url.Parse(o365["endpoint"].(string))
-	if err != nil {
-		return nil, fmt.Errorf("Failed to parse endpoint: %v", err)
-	}
-
-	return &O365Client{
-		aclGUID:    o365["acl_guid"].(string),
-		client:     &http.Client{Timeout: 10 * time.Minute},
-		endpoint:   endpoint,
-		secretCode: o365["secret_code"].(string),
-	}, nil
 }

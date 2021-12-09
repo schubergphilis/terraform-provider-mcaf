@@ -17,27 +17,15 @@ Use the navigation to the left to read about the available resources.
 ```hcl
 provider "mcaf" {
   aws {}
-  o365 {}
 }
 ```
 
 ## Argument Reference
 
-Refer to the <a href="https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication">AWS 
+Refer to the <a href="https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication">AWS
 Provider authentication docs</a> for how to configure the `aws` object. We
 recommend exporting the following variables:
 
 * `AWS_ACCESS_KEY_ID`
 * `AWS_SECRET_ACCESS_KEY`
 * `AWS_DEFAULT_REGION`
-
-The `o365` object supports the following arguments:
-
-* `acl_guid` - (Required) The ACL GUID. It can also be sourced
-  from the `O365_ACL_GUID` environment variable.
-
-* `endpoint` - (Required) The ExoAPI endpoint URL. It can also be
-  sourced from the `O365_EXOAPI_ENDPOINT` environment variable.
-
-* `secret_code` - (Required) The secret code. It can also be
-  sourced from the `O365_SECRET_CODE` environment variable.
