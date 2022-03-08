@@ -1,4 +1,3 @@
-// Package mcaf implements a custom MCAF Terraform provider.
 package mcaf
 
 import (
@@ -20,7 +19,8 @@ func New() *schema.Provider {
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
-			"mcaf_aws_account": resourceAWSAccount(),
+			"mcaf_aws_account":           resourceAWSAccount(),
+			"mcaf_aws_codebuild_trigger": resourceAWSCodeBuildTrigger(),
 		},
 
 		ConfigureFunc: providerConfigure,
