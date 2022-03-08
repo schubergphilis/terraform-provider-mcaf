@@ -37,7 +37,6 @@ func awsClient(aws map[string]interface{}) (*AWSClient, error) {
 		Token:                   aws["token"].(string),
 		DebugLogging:            logging.IsDebugOrHigher(),
 		UserAgentProducts: []*awsbase.UserAgentProduct{
-			{Name: "APN", Version: "1.0"},
 			{Name: "MCAF", Version: "1.0"},
 			{Name: "Terraform", Version: terraform.NewState().TFVersion},
 		},
