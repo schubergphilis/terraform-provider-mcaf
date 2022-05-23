@@ -83,7 +83,7 @@ func resourceAWSAccountCreate(d *schema.ResourceData, meta interface{}) error {
 		return fmt.Errorf("Error searching service catalog: %v", err)
 	}
 	if len(products.ProductViewSummaries) != 1 {
-		return fmt.Errorf("Unexpected number of search results: %d", len(products.ProductViewSummaries))
+		return fmt.Errorf("No Control Tower Account Factory found in your account. Please check your User and/or Role permissions and your Region settings.")
 	}
 
 	log.Printf("[DEBUG List all product artifacts to find the active artifact")
