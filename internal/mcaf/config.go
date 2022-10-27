@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/aws/aws-sdk-go/service/codebuild"
+	"github.com/aws/aws-sdk-go/service/organizations"
 	"github.com/aws/aws-sdk-go/service/servicecatalog"
 	awsbase "github.com/hashicorp/aws-sdk-go-base"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/logging"
@@ -19,6 +20,7 @@ type Client struct {
 type AWSClient struct {
 	accountID string
 	cbconn    *codebuild.CodeBuild
+	orgsconn  *organizations.Organizations
 	scconn    *servicecatalog.ServiceCatalog
 }
 
@@ -61,6 +63,7 @@ func awsClient(aws map[string]interface{}) (*AWSClient, error) {
 	client := &AWSClient{
 		accountID: accountID,
 		cbconn:    codebuild.New(sess.Copy()),
+		orgsconn:  organizations.New(sess.Copy()),
 		scconn:    servicecatalog.New(sess.Copy()),
 	}
 

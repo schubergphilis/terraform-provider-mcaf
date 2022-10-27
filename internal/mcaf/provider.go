@@ -18,6 +18,10 @@ func New() *schema.Provider {
 			},
 		},
 
+		DataSourcesMap: map[string]*schema.Resource{
+			"mcaf_aws_all_organizational_units": dataSourceAwsAllOrganizationalUnits(),
+		},
+
 		ResourcesMap: map[string]*schema.Resource{
 			"mcaf_aws_account":           resourceAWSAccount(),
 			"mcaf_aws_codebuild_trigger": resourceAWSCodeBuildTrigger(),
