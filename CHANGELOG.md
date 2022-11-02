@@ -1,3 +1,8 @@
+## Unreleased
+
+- Require minimum go 1.18
+- Update module versions to latest versions
+
 ## 0.4.1 (2022-03-08)
 
 - Add missing docs for the new CodeBuild resource.
