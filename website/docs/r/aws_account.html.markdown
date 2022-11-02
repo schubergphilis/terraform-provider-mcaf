@@ -23,14 +23,10 @@ resource "mcaf_aws_account" "example" {
     lastname  = "Admin"
     email     = "control-tower@example.com"
   }
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 ```
 
-~> **NOTE:** You cannot delete an AWS account so the lifecycle block required. Sometime in the future the delete action may
+~> **NOTE:** Deleting a `mcaf_aws_account` resource does not close the account. Instead, the provisioned product is deleted resulting in account being moved to the Root OU and un-enrolled from Control Tower. Closing the account as part of the deletion will be handled in a future version.
 
 It is also possible to create an AWS account in a nested organizational unit by specifying it's path:
 
