@@ -279,6 +279,14 @@ func resourceAWSAccountUpdate(d *schema.ResourceData, meta interface{}) error {
 		ProvisionedProductId: aws.String(d.Id()),
 		ProvisioningParameters: []*servicecatalog.UpdateProvisioningParameter{
 			{
+				Key:   aws.String("AccountName"),
+				Value: aws.String(name),
+			},
+			{
+				Key:   aws.String("AccountEmail"),
+				Value: aws.String(d.Get("email").(string)),
+			},
+			{
 				Key:   aws.String("SSOUserFirstName"),
 				Value: aws.String(sso["firstname"].(string)),
 			},
