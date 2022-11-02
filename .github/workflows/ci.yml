@@ -11,9 +11,9 @@ jobs:
       - name: Check out code
         uses: actions/checkout@master
       - name: Setup Go env
-        uses: actions/setup-go@v1
+        uses: actions/setup-go@v3
         with:
-          go-version: '1.13.6'
+          go-version-file: 'go.mod'
       - name: Run fmtcheck
         run: make fmtcheck
 
@@ -23,9 +23,9 @@ jobs:
       - name: Check out code
         uses: actions/checkout@master
       - name: Setup Go env
-        uses: actions/setup-go@v1
+        uses: actions/setup-go@v3
         with:
-          go-version: '1.13.6'
+          go-version-file: 'go.mod'
       - name: Run acceptance tests
         run: make testacc
     env:
