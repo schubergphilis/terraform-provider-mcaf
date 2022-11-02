@@ -1,4 +1,4 @@
-## Unreleased
+## 0.4.2 (2022-11-02)
 
 - Fix AWS account provisioning.
 - Fix moving AWS account to new OU.
