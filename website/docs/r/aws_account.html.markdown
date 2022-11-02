@@ -23,14 +23,26 @@ resource "mcaf_aws_account" "example" {
     lastname  = "Admin"
     email     = "control-tower@example.com"
   }
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 ```
 
-~> **NOTE:** You cannot delete an AWS account so the lifecycle block required. Sometime in the future the delete action may 
+~> **NOTE:** Deleting a `mcaf_aws_account` resource does not close the account. Instead, the provisioned product is deleted resulting in account being moved to the Root OU and un-enrolled from Control Tower. Closing the account as part of the deletion will be handled in a future version.
+
+It is also possible to create an AWS account in a nested organizational unit by specifying it's path:
+
+```hcl
+resource "mcaf_aws_account" "example" {
+  name                = "foo"
+  email               = "foo@example"
+  organizational_unit = "My-Team/My-Project/My-Env"
+
+  sso {
+    firstname = "Control Tower"
+    lastname  = "Admin"
+    email     = "control-tower@example.com"
+  }
+}
+```
 
 ## Argument Reference
 
@@ -40,7 +52,9 @@ The following arguments are supported:
 
 * `email` - (Required) The email address of the account.
 
-* `organizational_unit` - (Required) The Organizational Unit to place the account in.
+* `organizational_unit` - (Optional) The Organizational Unit to place the account in. **Deprecated** This argument has been replaced by `organizational_unit_path` and will be removed in a future version.
+
+* `organizational_unit_path` - (Optional) The Organizational Unit path to place the account in.
 
 * `provisioned_product_name` - (Optional) A custom name for the provisioned product.
 

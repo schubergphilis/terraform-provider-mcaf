@@ -1,12 +1,15 @@
 package mcaf
 
 import (
+	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/organizations"
 	"github.com/aws/aws-sdk-go/service/servicecatalog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -53,8 +56,15 @@ func resourceAWSAccount() *schema.Resource {
 				},
 			},
 			"organizational_unit": {
-				Type:     schema.TypeString,
-				Required: true,
+				Type:          schema.TypeString,
+				Optional:      true,
+				Deprecated:    "This field is deprecated and will be removed in a future version. Please use organizational_unit_path instead.",
+				ConflictsWith: []string{"organizational_unit_path"},
+			},
+			"organizational_unit_path": {
+				Type:          schema.TypeString,
+				Optional:      true,
+				ConflictsWith: []string{"organizational_unit"},
 			},
 			"provisioned_product_name": {
 				Type:     schema.TypeString,
@@ -73,6 +83,7 @@ func resourceAWSAccount() *schema.Resource {
 var accountMutex sync.Mutex
 
 func resourceAWSAccountCreate(d *schema.ResourceData, meta interface{}) error {
+	orgsconn := meta.(*Client).AWSClient.orgsconn
 	scconn := meta.(*Client).AWSClient.scconn
 
 	log.Printf("[DEBUG] Search the Account Factory product")
@@ -106,9 +117,30 @@ func resourceAWSAccountCreate(d *schema.ResourceData, meta interface{}) error {
 		return fmt.Errorf("Could not find the provisioning artifact ID")
 	}
 
+	// Get organisation Root OU name and ID
+	roots, err := listRoots(orgsconn)
+	if err != nil {
+		return err
+	}
+
+	// Support both organizational_unit and organizational_unit_path until deprecated organizational_unit field is removed
+	ou, ouOk := d.GetOk("organizational_unit")
+	ouPath, ouPathOk := d.GetOk("organizational_unit_path")
+	if !ouOk && !ouPathOk {
+		return errors.New("one of organizational_unit or organizational_unit_path must be configured")
+	}
+	if ouOk {
+		ouPath = ou
+	}
+
+	// Get child OU name and ID from provided path
+	managedOu, err := returnChildOu(orgsconn, ouPath.(string), aws.StringValue(roots[0].Id), aws.StringValue(roots[0].Name))
+	if err != nil {
+		return err
+	}
+
 	// Get the name, ou and SSO details from the config.
 	name := d.Get("name").(string)
-	ou := d.Get("organizational_unit").(string)
 	ppn := d.Get("provisioned_product_name").(string)
 	sso := d.Get("sso").([]interface{})[0].(map[string]interface{})
 
@@ -145,15 +177,17 @@ func resourceAWSAccountCreate(d *schema.ResourceData, meta interface{}) error {
 			},
 			{
 				Key:   aws.String("ManagedOrganizationalUnit"),
-				Value: aws.String(ou),
+				Value: aws.String(fmt.Sprintf("%s (%s)", aws.StringValue(managedOu.Name), aws.StringValue(managedOu.Id))),
 			},
 		},
 	}
 
+	log.Printf("[DEBUG] Provision product parameters: %+v\n", params)
+
 	accountMutex.Lock()
 	defer accountMutex.Unlock()
 
-	log.Printf("[DEBUG] Provision account %s in organizational unit %s", name, ou)
+	log.Printf("[DEBUG] Provision account %s in organizational unit %s (%s)", name, aws.StringValue(managedOu.Name), aws.StringValue(managedOu.Id))
 	account, err := scconn.ProvisionProduct(params)
 	if err != nil {
 		return fmt.Errorf("Error provisioning account %s: %v", name, err)
@@ -211,17 +245,47 @@ func resourceAWSAccountRead(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceAWSAccountUpdate(d *schema.ResourceData, meta interface{}) error {
+	orgsconn := meta.(*Client).AWSClient.orgsconn
 	scconn := meta.(*Client).AWSClient.scconn
+
+	// Get organisation Root OU name and ID
+	roots, err := listRoots(orgsconn)
+	if err != nil {
+		return err
+	}
+
+	// Support both organizational_unit and organizational_unit_path until deprecated organizational_unit field is removed
+	ou, ouOk := d.GetOk("organizational_unit")
+	ouPath, ouPathOk := d.GetOk("organizational_unit_path")
+	if !ouOk && !ouPathOk {
+		return errors.New("one of organizational_unit or organizational_unit_path must be configured")
+	}
+	if ouOk {
+		ouPath = ou
+	}
+
+	// Get child OU name and ID from provided path
+	managedOu, err := returnChildOu(orgsconn, ouPath.(string), aws.StringValue(roots[0].Id), aws.StringValue(roots[0].Name))
+	if err != nil {
+		return err
+	}
 
 	// Get the name, ou and SSO details from the config.
 	name := d.Get("name").(string)
-	ou := d.Get("organizational_unit").(string)
 	sso := d.Get("sso").([]interface{})[0].(map[string]interface{})
 
 	// Create a new parameters struct.
 	params := &servicecatalog.UpdateProvisionedProductInput{
 		ProvisionedProductId: aws.String(d.Id()),
 		ProvisioningParameters: []*servicecatalog.UpdateProvisioningParameter{
+			{
+				Key:   aws.String("AccountName"),
+				Value: aws.String(name),
+			},
+			{
+				Key:   aws.String("AccountEmail"),
+				Value: aws.String(d.Get("email").(string)),
+			},
 			{
 				Key:   aws.String("SSOUserFirstName"),
 				Value: aws.String(sso["firstname"].(string)),
@@ -236,7 +300,7 @@ func resourceAWSAccountUpdate(d *schema.ResourceData, meta interface{}) error {
 			},
 			{
 				Key:   aws.String("ManagedOrganizationalUnit"),
-				Value: aws.String(ou),
+				Value: aws.String(fmt.Sprintf("%s (%s)", aws.StringValue(managedOu.Name), aws.StringValue(managedOu.Id))),
 			},
 		},
 	}
@@ -278,6 +342,47 @@ func resourceAWSAccountDelete(d *schema.ResourceData, meta interface{}) error {
 
 	// Wait for the provisioning to finish.
 	return waitForProvisioning(name, account.RecordDetail.RecordId, meta)
+}
+
+// returnChildOu returns the ID of the child OU with the given path.
+func returnChildOu(conn *organizations.Organizations, path, ouID, ouName string) (*organizations.OrganizationalUnit, error) {
+	ou := &organizations.OrganizationalUnit{}
+
+	for _, v := range strings.Split(path, "/") {
+		if strings.EqualFold(v, "Root") {
+			continue
+		}
+
+		input := &organizations.ListOrganizationalUnitsForParentInput{
+			ParentId: aws.String(ouID),
+		}
+
+		var childOuID, childOuName string
+		log.Printf("[DEBUG] Listing OUs under parent: %s (%s)", ouName, ouID)
+		err := conn.ListOrganizationalUnitsForParentPages(input, func(page *organizations.ListOrganizationalUnitsForParentOutput, lastPage bool) bool {
+			for _, childOu := range page.OrganizationalUnits {
+				if *childOu.Name == v {
+					childOuID = *childOu.Id
+					childOuName = *childOu.Name
+					ou = childOu
+					return false
+				}
+			}
+			return true
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error listing organizational units for parent %s (%s): %v", ouName, ouID, err)
+		}
+
+		if childOuID == "" {
+			return nil, fmt.Errorf("organizational unit %s not found in parent %s (%s)", ou, ouName, ouID)
+		}
+
+		ouID = childOuID
+		ouName = childOuName
+	}
+
+	return ou, nil
 }
 
 // waitForProvisioning waits until the provisioning finished.
