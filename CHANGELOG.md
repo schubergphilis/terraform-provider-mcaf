@@ -1,7 +1,10 @@
 ## Unreleased
 
-- Require minimum go 1.18
-- Update module versions to latest versions
+- Fix AWS account provisioning.
+- Fix moving AWS account to new OU.
+- Require at least Go 1.18 to build plugin.
+- Update `mcaf_aws_account` docs.
+- Update Go module versions to latest versions.
 
 ## 0.4.1 (2022-03-08)
 
