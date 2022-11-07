@@ -20,7 +20,9 @@ func resourceAWSAccount() *schema.Resource {
 		Read:   checkProvider("aws", resourceAWSAccountRead),
 		Update: checkProvider("aws", resourceAWSAccountUpdate),
 		Delete: checkProvider("aws", resourceAWSAccountDelete),
-
+		Importer: &schema.ResourceImporter{
+			State: schema.ImportStatePassthrough,
+		},
 		Schema: map[string]*schema.Schema{
 			"name": {
 				Type:     schema.TypeString,
@@ -206,7 +208,30 @@ func resourceAWSAccountCreate(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceAWSAccountRead(d *schema.ResourceData, meta interface{}) error {
+	orgsconn := meta.(*Client).AWSClient.orgsconn
 	scconn := meta.(*Client).AWSClient.scconn
+
+	// Get organisation Root OU name and ID
+	roots, err := listRoots(orgsconn)
+	if err != nil {
+		return err
+	}
+
+	// Support both organizational_unit and organizational_unit_path until deprecated organizational_unit field is removed
+	ou, ouOk := d.GetOk("organizational_unit")
+	ouPath, ouPathOk := d.GetOk("organizational_unit_path")
+	if !ouOk && !ouPathOk {
+		return errors.New("one of organizational_unit or organizational_unit_path must be configured")
+	}
+	if ouOk {
+		ouPath = ou
+	}
+
+	// Get child OU name and ID from provided path
+	managedOu, err := returnChildOu(orgsconn, ouPath.(string), aws.StringValue(roots[0].Id), aws.StringValue(roots[0].Name))
+	if err != nil {
+		return err
+	}
 
 	// Get the name from the config.
 	name := d.Get("name").(string)
@@ -230,6 +255,9 @@ func resourceAWSAccountRead(d *schema.ResourceData, meta interface{}) error {
 
 	// Update the config.
 	d.Set("provisioned_product_name", *account.ProvisionedProductDetail.Name)
+	d.Set("name", *account.ProvisionedProductDetail.Name)
+	d.Set("organizational_unit_path", managedOu)
+
 	for _, output := range status.RecordOutputs {
 		switch *output.OutputKey {
 		case "AccountName":
