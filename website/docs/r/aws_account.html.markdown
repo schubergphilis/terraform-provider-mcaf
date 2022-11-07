@@ -71,3 +71,12 @@ The `sso` object supports the following:
 In addition to all arguments above, the following attributes are exported:
 
 * `account_id` - The ID of the AWS account.
+
+## Import
+
+`mcaf_aws_account` can be imported using service catalog provisioned product ID, e.g.,
+
+```
+terraform import mcaf_aws_account.example pp-lhugznw7bidjj
+```
+
