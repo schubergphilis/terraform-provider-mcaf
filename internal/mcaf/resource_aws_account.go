@@ -252,12 +252,12 @@ func resourceAWSAccountRead(d *schema.ResourceData, meta interface{}) error {
 		}
 	}
 
-	accountStatus, err := getAccountByID(orgsconn, accountID)
+	accountInfo, err := getAccountInfo(orgsconn, accountID)
 	if err != nil {
 		return fmt.Errorf("error reading AWS Organizations Account (%s): %w", accountID, err)
 	}
 
-	d.Set("organization_account_status", accountStatus.Status)
+	d.Set("organization_account_status", accountInfo.Status)
 	return nil
 }
 
@@ -496,10 +496,10 @@ func getAccountID(svc *servicecatalog.ServiceCatalog, recordID *string) string {
 	return accountId
 }
 
-// getAccountStateStatus gets account state and checks if the account status is suspended
+// getAccountStateStatus gets account ID and returns StateRefreshFunc used to watch account resource state status
 func getAccountStateStatus(orgconn *organizations.Organizations, id string) resource.StateRefreshFunc {
 	return func() (interface{}, string, error) {
-		output, err := getAccountByID(orgconn, id)
+		output, err := getAccountInfo(orgconn, id)
 		if err != nil {
 			return nil, "", err
 		}
@@ -508,8 +508,8 @@ func getAccountStateStatus(orgconn *organizations.Organizations, id string) reso
 	}
 }
 
-// getAccountByID gets account id and returns account info
-func getAccountByID(conn *organizations.Organizations, id string) (*organizations.Account, error) {
+// getAccountInfo gets account ID and returns account info
+func getAccountInfo(conn *organizations.Organizations, id string) (*organizations.Account, error) {
 	input := &organizations.DescribeAccountInput{
 		AccountId: aws.String(id),
 	}
