@@ -1,6 +1,7 @@
 package mcaf
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -11,6 +12,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/organizations"
 	"github.com/aws/aws-sdk-go/service/servicecatalog"
+	"github.com/hashicorp/aws-sdk-go-base/tfawserr"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -22,14 +25,40 @@ func resourceAWSAccount() *schema.Resource {
 		Delete: checkProvider("aws", resourceAWSAccountDelete),
 
 		Schema: map[string]*schema.Schema{
+			"account_id": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+			"close_on_deletion": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
+			"email": {
+				Type:     schema.TypeString,
+				Required: true,
+				ForceNew: true,
+			},
 			"name": {
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
 			},
-			"email": {
+			"organizational_unit": {
+				Type:          schema.TypeString,
+				Optional:      true,
+				Deprecated:    "This field is deprecated and will be removed in a future version. Please use organizational_unit_path instead.",
+				ConflictsWith: []string{"organizational_unit_path"},
+			},
+			"organizational_unit_path": {
+				Type:          schema.TypeString,
+				Optional:      true,
+				ConflictsWith: []string{"organizational_unit"},
+			},
+			"provisioned_product_name": {
 				Type:     schema.TypeString,
-				Required: true,
+				Optional: true,
+				Computed: true,
 				ForceNew: true,
 			},
 			"sso": {
@@ -54,27 +83,6 @@ func resourceAWSAccount() *schema.Resource {
 						},
 					},
 				},
-			},
-			"organizational_unit": {
-				Type:          schema.TypeString,
-				Optional:      true,
-				Deprecated:    "This field is deprecated and will be removed in a future version. Please use organizational_unit_path instead.",
-				ConflictsWith: []string{"organizational_unit_path"},
-			},
-			"organizational_unit_path": {
-				Type:          schema.TypeString,
-				Optional:      true,
-				ConflictsWith: []string{"organizational_unit"},
-			},
-			"provisioned_product_name": {
-				Type:     schema.TypeString,
-				Optional: true,
-				Computed: true,
-				ForceNew: true,
-			},
-			"account_id": {
-				Type:     schema.TypeString,
-				Computed: true,
 			},
 		},
 	}
@@ -206,6 +214,7 @@ func resourceAWSAccountCreate(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceAWSAccountRead(d *schema.ResourceData, meta interface{}) error {
+	orgsconn := meta.(*Client).AWSClient.orgsconn
 	scconn := meta.(*Client).AWSClient.scconn
 
 	// Get the name from the config.
@@ -230,6 +239,7 @@ func resourceAWSAccountRead(d *schema.ResourceData, meta interface{}) error {
 
 	// Update the config.
 	d.Set("provisioned_product_name", *account.ProvisionedProductDetail.Name)
+	var accountID string
 	for _, output := range status.RecordOutputs {
 		switch *output.OutputKey {
 		case "AccountName":
@@ -237,10 +247,17 @@ func resourceAWSAccountRead(d *schema.ResourceData, meta interface{}) error {
 		case "AccountEmail":
 			d.Set("email", *output.OutputValue)
 		case "AccountId":
+			accountID = *aws.String(*output.OutputValue)
 			d.Set("account_id", *output.OutputValue)
 		}
 	}
 
+	accountStatus, err := getAccountByID(orgsconn, accountID)
+	if err != nil {
+		return fmt.Errorf("error reading AWS Organizations Account (%s): %w", accountID, err)
+	}
+
+	d.Set("organization_account_status", accountStatus.Status)
 	return nil
 }
 
@@ -325,14 +342,16 @@ func resourceAWSAccountUpdate(d *schema.ResourceData, meta interface{}) error {
 
 func resourceAWSAccountDelete(d *schema.ResourceData, meta interface{}) error {
 	scconn := meta.(*Client).AWSClient.scconn
+	orgconn := meta.(*Client).AWSClient.orgsconn
 
 	// Get the name from the config.
 	name := d.Get("name").(string)
+	close := d.Get("close_on_deletion").(bool)
 
 	accountMutex.Lock()
 	defer accountMutex.Unlock()
 
-	log.Printf("[DEBUG] Delete provisioned account %s: %s", name, d.Id())
+	log.Printf("[DEBUG] Deleting provisioned account %s: %s", name, d.Id())
 	account, err := scconn.TerminateProvisionedProduct(&servicecatalog.TerminateProvisionedProductInput{
 		ProvisionedProductId: aws.String(d.Id()),
 	})
@@ -341,7 +360,26 @@ func resourceAWSAccountDelete(d *schema.ResourceData, meta interface{}) error {
 	}
 
 	// Wait for the provisioning to finish.
-	return waitForProvisioning(name, account.RecordDetail.RecordId, meta)
+	err = waitForProvisioning(name, account.RecordDetail.RecordId, meta)
+	if err != nil {
+		return fmt.Errorf("Error waiting for deletion provisioned account %s: %v", name, err)
+	}
+
+	if close {
+		accountID := getAccountID(scconn, account.RecordDetail.RecordId)
+		log.Printf("[DEBUG] Closing AWS Organizations Account: %s", accountID)
+		_, err = orgconn.CloseAccount(&organizations.CloseAccountInput{
+			AccountId: aws.String(accountID),
+		})
+		if err != nil {
+			return fmt.Errorf("Error deleting AWS Organizations Account (%s): %w", accountID, err)
+		}
+		if _, err := waitForDeleting(orgconn, accountID); err != nil {
+			return fmt.Errorf("Error waiting for AWS Organizations Account (%s) delete: %w", accountID, err)
+		}
+	}
+
+	return nil
 }
 
 // returnChildOu returns the ID of the child OU with the given path.
@@ -415,4 +453,78 @@ func waitForProvisioning(name string, recordID *string, meta interface{}) error 
 	}
 
 	return nil
+}
+
+// waitForDeleting waits until account be suspended
+func waitForDeleting(orgconn *organizations.Organizations, id string) (*organizations.Account, error) {
+	stateConf := &resource.StateChangeConf{
+		Pending:      []string{organizations.AccountStatusPendingClosure},
+		Target:       []string{organizations.AccountStatusSuspended},
+		Refresh:      getAccountStateStatus(orgconn, id),
+		PollInterval: 10 * time.Second,
+		Timeout:      5 * time.Minute,
+	}
+
+	outputRaw, err := stateConf.WaitForStateContext(context.Background())
+
+	if output, ok := outputRaw.(*organizations.Account); ok {
+		return output, err
+	}
+
+	return nil, err
+}
+
+// getAccountID gets the account id based on rercord from the termination of the provisioned product
+func getAccountID(svc *servicecatalog.ServiceCatalog, recordID *string) string {
+	var accountId string
+
+	record := &servicecatalog.DescribeRecordInput{
+		Id: recordID,
+	}
+
+	describeRecord, err := svc.DescribeRecord(record)
+	if err != nil {
+		fmt.Print(err)
+	}
+	for _, output := range describeRecord.RecordOutputs {
+		if *output.OutputKey == "AccountId" {
+			accountId = *output.OutputValue
+			break
+		}
+	}
+
+	return accountId
+}
+
+// getAccountStateStatus gets account state and checks if the account status is suspended
+func getAccountStateStatus(orgconn *organizations.Organizations, id string) resource.StateRefreshFunc {
+	return func() (interface{}, string, error) {
+		output, err := getAccountByID(orgconn, id)
+		if err != nil {
+			return nil, "", err
+		}
+
+		return output, aws.StringValue(output.Status), nil
+	}
+}
+
+// getAccountByID gets account id and returns account info
+func getAccountByID(conn *organizations.Organizations, id string) (*organizations.Account, error) {
+	input := &organizations.DescribeAccountInput{
+		AccountId: aws.String(id),
+	}
+
+	output, err := conn.DescribeAccount(input)
+	if err != nil {
+		return nil, err
+	}
+
+	if tfawserr.ErrCodeEquals(err, organizations.ErrCodeAccountNotFoundException) {
+		return nil, &resource.NotFoundError{
+			LastError:   err,
+			LastRequest: input,
+		}
+	}
+
+	return output.Account, nil
 }
