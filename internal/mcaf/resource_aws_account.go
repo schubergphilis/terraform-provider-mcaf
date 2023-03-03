@@ -44,6 +44,10 @@ func resourceAWSAccount() *schema.Resource {
 				Required: true,
 				ForceNew: true,
 			},
+			"organization_account_status": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
 			"organizational_unit": {
 				Type:          schema.TypeString,
 				Optional:      true,
