@@ -12,7 +12,7 @@ Creates an AWS account using Control Tower's Account Factory.
 
 ## Example Usage
 
-```hcl
+```terraform
 resource "mcaf_aws_account" "example" {
   name                = "foo"
   email               = "foo@example"
@@ -26,11 +26,11 @@ resource "mcaf_aws_account" "example" {
 }
 ```
 
-~> **NOTE:** Deleting a `mcaf_aws_account` resource does not close the account. Instead, the provisioned product is deleted resulting in account being moved to the Root OU and un-enrolled from Control Tower. Closing the account as part of the deletion will be handled in a future version.
+~> **NOTE:** Deleting a `mcaf_aws_account` resource does not close the account. Instead, the provisioned product is deleted resulting in account being moved to the Root OU and un-enrolled from Control Tower. You must set the `close_on_deletion` flag to true to close the account. Close account using `close_on_deletion` can produce a [CLOSE_ACCOUNT_QUOTA_EXCEEDED](https://docs.aws.amazon.com/organizations/latest/APIReference/API_CloseAccount.html) error, and require you to close the account manually.
 
 It is also possible to create an AWS account in a nested organizational unit by specifying it's path:
 
-```hcl
+```terraform
 resource "mcaf_aws_account" "example" {
   name                = "foo"
   email               = "foo@example"
@@ -57,6 +57,8 @@ The following arguments are supported:
 * `organizational_unit_path` - (Optional) The Organizational Unit path to place the account in.
 
 * `provisioned_product_name` - (Optional) A custom name for the provisioned product.
+  
+* `close_on_deletion` - (Optional) If true, a deletion event will close the account. Otherwise, moved to the Root OU and un-enrolled from Control Tower.
 
 The `sso` object supports the following:
 
@@ -71,3 +73,4 @@ The `sso` object supports the following:
 In addition to all arguments above, the following attributes are exported:
 
 * `account_id` - The ID of the AWS account.
+* `organization_account_status` - The status of the AWS account.
