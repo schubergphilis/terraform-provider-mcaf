@@ -11,6 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/organizations"
 	"github.com/aws/aws-sdk-go/service/servicecatalog"
+	"github.com/hashicorp/aws-sdk-go-base/tfawserr"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -67,6 +69,10 @@ func resourceAWSAccount() *schema.Resource {
 				Type:          schema.TypeString,
 				Optional:      true,
 				ConflictsWith: []string{"organizational_unit"},
+			},
+			"organization_account_status": {
+				Type:     schema.TypeString,
+				Computed: true,
 			},
 			"provisioned_product_name": {
 				Type:     schema.TypeString,
@@ -208,8 +214,8 @@ func resourceAWSAccountCreate(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceAWSAccountRead(d *schema.ResourceData, meta interface{}) error {
-	scconn := meta.(*Client).AWSClient.scconn
 	orgsconn := meta.(*Client).AWSClient.orgsconn
+	scconn := meta.(*Client).AWSClient.scconn
 
 	// Get the name from the config.
 	name := d.Get("name").(string)
@@ -233,7 +239,7 @@ func resourceAWSAccountRead(d *schema.ResourceData, meta interface{}) error {
 	// Update the config.
 	d.Set("provisioned_product_name", *account.ProvisionedProductDetail.Name)
 	d.Set("name", *account.ProvisionedProductDetail.Name)
-
+	var accountID string
 	for _, output := range status.RecordOutputs {
 		switch *output.OutputKey {
 		case "AccountName":
@@ -241,10 +247,17 @@ func resourceAWSAccountRead(d *schema.ResourceData, meta interface{}) error {
 		case "AccountEmail":
 			d.Set("email", *output.OutputValue)
 		case "AccountId":
+			accountID = *aws.String(*output.OutputValue)
 			d.Set("account_id", *output.OutputValue)
 		}
 	}
 
+	accountInfo, err := getAccountInfo(orgsconn, accountID)
+	if err != nil {
+		return fmt.Errorf("error reading AWS Organizations Account (%s): %w", accountID, err)
+	}
+
+	d.Set("organization_account_status", accountInfo.Status)
 	return nil
 }
 
@@ -389,10 +402,6 @@ func returnChildOu(conn *organizations.Organizations, path, ouID, ouName string)
 	return ou, nil
 }
 
-func returnParentOu(){
-
-}
-
 // waitForProvisioning waits until the provisioning finished.
 func waitForProvisioning(name string, recordID *string, meta interface{}) error {
 	scconn := meta.(*Client).AWSClient.scconn
@@ -423,4 +432,25 @@ func waitForProvisioning(name string, recordID *string, meta interface{}) error 
 	}
 
 	return nil
+}
+
+// getAccountInfo gets account ID and returns account info
+func getAccountInfo(conn *organizations.Organizations, id string) (*organizations.Account, error) {
+	input := &organizations.DescribeAccountInput{
+		AccountId: aws.String(id),
+	}
+
+	output, err := conn.DescribeAccount(input)
+	if err != nil {
+		return nil, err
+	}
+
+	if tfawserr.ErrCodeEquals(err, organizations.ErrCodeAccountNotFoundException) {
+		return nil, &resource.NotFoundError{
+			LastError:   err,
+			LastRequest: input,
+		}
+	}
+
+	return output.Account, nil
 }
