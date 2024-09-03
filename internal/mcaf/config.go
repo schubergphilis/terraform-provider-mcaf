@@ -3,6 +3,7 @@ package mcaf
 import (
 	"log"
 
+	"github.com/aws/aws-sdk-go/service/backup"
 	"github.com/aws/aws-sdk-go/service/codebuild"
 	"github.com/aws/aws-sdk-go/service/organizations"
 	"github.com/aws/aws-sdk-go/service/servicecatalog"
@@ -19,6 +20,7 @@ type Client struct {
 
 type AWSClient struct {
 	accountID string
+	bconn     *backup.Backup
 	cbconn    *codebuild.CodeBuild
 	orgsconn  *organizations.Organizations
 	scconn    *servicecatalog.ServiceCatalog
@@ -62,6 +64,7 @@ func awsClient(aws map[string]interface{}) (*AWSClient, error) {
 
 	client := &AWSClient{
 		accountID: accountID,
+		bconn:     backup.New(sess.Copy()),
 		cbconn:    codebuild.New(sess.Copy()),
 		orgsconn:  organizations.New(sess.Copy()),
 		scconn:    servicecatalog.New(sess.Copy()),

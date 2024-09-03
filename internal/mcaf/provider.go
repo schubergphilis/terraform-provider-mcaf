@@ -19,7 +19,8 @@ func New() *schema.Provider {
 		},
 
 		DataSourcesMap: map[string]*schema.Resource{
-			"mcaf_aws_all_organizational_units": dataSourceAwsAllOrganizationalUnits(),
+			"mcaf_aws_all_organizational_units":              dataSourceAwsAllOrganizationalUnits(),
+			"mcaf_aws_all_organization_backup_configuration": dataSourceAwsAllOrganizationConfiguration(),
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
