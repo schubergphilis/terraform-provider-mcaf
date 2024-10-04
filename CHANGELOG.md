@@ -1,10 +1,14 @@
+## 0.4.3 (2024-10-04)
+
+- Support newer "AWS Control Tower Account Factory" versions
+
 ## 0.4.2 (2022-11-02)
 
-- Fix AWS account provisioning.
-- Fix moving AWS account to new OU.
-- Require at least Go 1.18 to build plugin.
-- Update `mcaf_aws_account` docs.
-- Update Go module versions to latest versions.
+- Add `mcaf_aws_all_organizational_units` data resource
+- Fix `mcaf_aws_account` so it can move accounts to new organizational units
+- Update `mcaf_aws_account` docs
+- Update `mcaf_aws_account` to provision accounts using updated Service Catalog fields
+- Update module versions and require minimum Go 1.18 to build plugin
 
 ## 0.4.1 (2022-03-08)
 
