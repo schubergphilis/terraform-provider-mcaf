@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/organizations"
 	"github.com/aws/aws-sdk-go/service/servicecatalog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -72,6 +73,12 @@ func resourceAWSAccount() *schema.Resource {
 				Computed: true,
 				ForceNew: true,
 			},
+			"provisioned_product_path_id": {
+				Type:     schema.TypeString,
+				Optional: true,
+				Computed: true,
+				ForceNew: true,
+			},
 			"account_id": {
 				Type:     schema.TypeString,
 				Computed: true,
@@ -116,6 +123,17 @@ func resourceAWSAccountCreate(d *schema.ResourceData, meta interface{}) error {
 	if artifactID == "" {
 		return fmt.Errorf("Could not find the provisioning artifact ID")
 	}
+
+	// Get the path ID of the provisioned product.
+	pppid := d.Get("provisioned_product_path_id").(string)
+	if pppid != "" {
+		log.Printf("[DEBUG] Get the path ID of the provisioned product")
+		pppid, err = launchPathID(scconn, products.ProductViewSummaries[0].ProductId)
+		if err != nil {
+			return err
+		}
+	}
+	d.Set("provisioned_product_path_id", pppid)
 
 	// Get organisation Root OU name and ID
 	roots, err := listRoots(orgsconn)
@@ -180,6 +198,11 @@ func resourceAWSAccountCreate(d *schema.ResourceData, meta interface{}) error {
 				Value: aws.String(fmt.Sprintf("%s (%s)", aws.StringValue(managedOu.Name), aws.StringValue(managedOu.Id))),
 			},
 		},
+	}
+
+	// Set the path ID if it one exists.
+	if pppid != "" {
+		params.PathId = aws.String(pppid)
 	}
 
 	log.Printf("[DEBUG] Provision product parameters: %+v\n", params)
@@ -342,6 +365,31 @@ func resourceAWSAccountDelete(d *schema.ResourceData, meta interface{}) error {
 
 	// Wait for the provisioning to finish.
 	return waitForProvisioning(name, account.RecordDetail.RecordId, meta)
+}
+
+// launchPathID returns the launch path ID of a provisioned product.
+func launchPathID(conn *servicecatalog.ServiceCatalog, productID *string) (string, error) {
+	paths, err := conn.ListLaunchPaths(&servicecatalog.ListLaunchPathsInput{
+		ProductId: productID,
+	})
+
+	if err != nil {
+		if awsErr, ok := err.(awserr.Error); ok {
+			// Older versions of the Account Factory product do not have a launch path.
+			if awsErr.Code() == servicecatalog.ErrCodeResourceNotFoundException {
+				log.Printf("[WARN] No launch paths found for product ID: %s", *productID)
+				return "", nil
+			}
+		}
+
+		return "", fmt.Errorf("Error listing launch paths: %v", err)
+	}
+
+	if len(paths.LaunchPathSummaries) != 1 {
+		return "", fmt.Errorf("More than one launch path found for product %s, set path ID using the path_id field", *productID)
+	}
+
+	return *paths.LaunchPathSummaries[0].Id, nil
 }
 
 // returnChildOu returns the ID of the child OU with the given path.
