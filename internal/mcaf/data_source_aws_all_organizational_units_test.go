@@ -19,7 +19,7 @@ func TestAccDataSourceAwsAllOrganizationalUnits_basic(t *testing.T) {
 			{
 				Config: testAccDataSourceAwsAllOrganizationalUnitsConfig,
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(dataSourceName, "organizational_units.#", "5"),
+					resource.TestCheckResourceAttr(dataSourceName, "organizational_units.#", "6"),
 				),
 			},
 		},
