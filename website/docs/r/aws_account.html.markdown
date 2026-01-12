@@ -14,9 +14,9 @@ Creates an AWS account using Control Tower's Account Factory.
 
 ```hcl
 resource "mcaf_aws_account" "example" {
-  name                = "foo"
-  email               = "foo@example"
-  organizational_unit = "My-OU"
+  name                     = "foo"
+  email                    = "foo@example"
+  organizational_unit_path = "My-OU"
 
   sso {
     firstname = "Control Tower"
@@ -32,9 +32,9 @@ It is also possible to create an AWS account in a nested organizational unit by 
 
 ```hcl
 resource "mcaf_aws_account" "example" {
-  name                = "foo"
-  email               = "foo@example"
-  organizational_unit = "My-Team/My-Project/My-Env"
+  name                     = "foo"
+  email                    = "foo@example"
+  organizational_unit_path = "My-Team/My-Project/My-Env"
 
   sso {
     firstname = "Control Tower"
@@ -48,26 +48,28 @@ resource "mcaf_aws_account" "example" {
 
 The following arguments are supported:
 
-* `name` - (Required) The name of the account.
+- `name` - (Required) The name of the account.
 
-* `email` - (Required) The email address of the account.
+- `email` - (Required) The email address of the account.
 
-* `organizational_unit` - (Optional) The Organizational Unit to place the account in. **Deprecated** This argument has been replaced by `organizational_unit_path` and will be removed in a future version.
+- `organizational_unit` - (Optional) The Organizational Unit to place the account in. **Deprecated** This argument has been replaced by `organizational_unit_path` and will be removed in a future version.
 
-* `organizational_unit_path` - (Optional) The Organizational Unit path to place the account in.
+- `organizational_unit_path` - (Optional) The Organizational Unit path to place the account in.
 
-* `provisioned_product_name` - (Optional) A custom name for the provisioned product.
+- `provisioned_product_path_id` - (Optional) The launch path ID of the `AWS Control Tower Account Factory` product. If not provided, the provider will attempt to look it up itself.
+
+- `provisioned_product_name` - (Optional) A custom name for the provisioned product.
 
 The `sso` object supports the following:
 
-* `firstname` - (Required) The first name of the Control Tower SSO account.
+- `firstname` - (Required) The first name of the Control Tower SSO account.
 
-* `lastname` - (Required) The lastname of the Control Tower SSO account.
+- `lastname` - (Required) The lastname of the Control Tower SSO account.
 
-* `email` - (Required) The email address of the Control Tower SSO account.
+- `email` - (Required) The email address of the Control Tower SSO account.
 
 ## Attributes Reference
 
 In addition to all arguments above, the following attributes are exported:
 
-* `account_id` - The ID of the AWS account.
+- `account_id` - The ID of the AWS account.

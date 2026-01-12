@@ -3,12 +3,12 @@ layout: "mcaf"
 page_title: "Provider: MCAF"
 sidebar_current: "docs-mcaf-index"
 description: |-
-  The MCAF provider is used to interact certain AWS and O365 APIs.
+  The MCAF provider is used to provide additional functionality not available in official or community providers.
 ---
 
 # MCAF Provider
 
-The MCAF provider is used to interact with AWS and Office 365 via the ExoAPI.
+The MCAF provider is used to provide additional functionality not available in official or community providers.
 
 Use the navigation to the left to read about the available resources.
 
